@@ -2,5 +2,7 @@
   "name": "PulseTrack iOS 27 Diet & Activity Tracker",
   "description": "Production-ready SwiftUI & SwiftData architecture for iPhone 16 with Apple HealthKit, concentric macro rings, and interactive iOS 27 simulation.",
   "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
 }

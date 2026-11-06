@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { X, Check, Sparkles, Sun, SunMedium, Moon } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { X, Check, Sparkles, Sun, SunMedium, Moon, Wand2, Loader2 } from 'lucide-react';
 import type { MealItemLog } from '../../utils/nutrition';
 import { haptic } from '../../utils/haptics';
 
@@ -20,17 +20,23 @@ export const MealEntryModal: React.FC<MealEntryModalProps> = ({
     initialSlot
   );
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (isOpen) {
       setSelectedSlot(initialSlot);
     }
   }, [isOpen, initialSlot]);
 
+  // AI Natural Language input
+  const [naturalLanguageInput, setNaturalLanguageInput] = useState('');
+  const [isAiEstimating, setIsAiEstimating] = useState(false);
+  const [aiError, setAiError] = useState<string | null>(null);
+
+  // Form inputs
   const [foodName, setFoodName] = useState('');
-  const [calories, setCalories] = useState('420');
-  const [protein, setProtein] = useState('32');
-  const [carbs, setCarbs] = useState('40');
-  const [fat, setFat] = useState('12');
+  const [calories, setCalories] = useState('450');
+  const [protein, setProtein] = useState('30');
+  const [carbs, setCarbs] = useState('45');
+  const [fat, setFat] = useState('15');
 
   // Quick food presets
   const presets = [
@@ -39,7 +45,7 @@ export const MealEntryModal: React.FC<MealEntryModalProps> = ({
     { name: 'Grilled Chicken Rice Bowl', cal: 540, p: 48, c: 56, f: 10, slot: 'lunch' },
     { name: 'Tuna Salad Wrap', cal: 410, p: 36, c: 38, f: 12, slot: 'lunch' },
     { name: 'Wild Salmon & Sweet Potato', cal: 580, p: 44, c: 42, f: 20, slot: 'dinner' },
-    { name: 'Steak & Steamed Asparagus', cal: 620, p: 52, c: 8, f: 38, slot: 'dinner' },
+    { name: '2 Chapatis & Chicken Curry', cal: 530, p: 36, c: 48, f: 16, slot: 'dinner' },
   ];
 
   if (!isOpen) return null;
@@ -52,6 +58,41 @@ export const MealEntryModal: React.FC<MealEntryModalProps> = ({
     setCarbs(p.c.toString());
     setFat(p.f.toString());
     setSelectedSlot(p.slot as 'breakfast' | 'lunch' | 'dinner');
+  };
+
+  const handleGeminiEstimate = async () => {
+    if (!naturalLanguageInput.trim() || isAiEstimating) return;
+
+    haptic.trigger('light');
+    setIsAiEstimating(true);
+    setAiError(null);
+
+    try {
+      const res = await fetch('/api/gemini/estimate-meal', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query: naturalLanguageInput.trim() }),
+      });
+
+      if (!res.ok) {
+        throw new Error(`Estimation failed with status ${res.status}`);
+      }
+
+      const data = await res.json();
+      haptic.trigger('success');
+
+      if (data.name) setFoodName(data.name);
+      if (data.calories != null) setCalories(Math.round(data.calories).toString());
+      if (data.protein != null) setProtein(Math.round(data.protein).toString());
+      if (data.carbs != null) setCarbs(Math.round(data.carbs).toString());
+      if (data.fat != null) setFat(Math.round(data.fat).toString());
+    } catch (err: unknown) {
+      console.error('Gemini error:', err);
+      setAiError('Could not reach Gemini estimation service. Falling back to manual entry.');
+      haptic.trigger('delete');
+    } finally {
+      setIsAiEstimating(false);
+    }
   };
 
   const handleSave = (e: React.FormEvent) => {
@@ -90,7 +131,7 @@ export const MealEntryModal: React.FC<MealEntryModalProps> = ({
               onClose();
             }}
             aria-label="Close meal log modal"
-            className="p-1.5 rounded-full bg-white/10 hover:bg-white/20 text-white/70"
+            className="p-1.5 rounded-full bg-white/10 hover:bg-white/20 text-white/70 active:scale-95 transition-all"
           >
             <X className="w-4 h-4" />
           </button>
@@ -114,7 +155,7 @@ export const MealEntryModal: React.FC<MealEntryModalProps> = ({
                   haptic.trigger('light');
                   setSelectedSlot(slot);
                 }}
-                className={`py-2 px-2 rounded-xl flex items-center justify-center gap-1.5 text-xs font-semibold transition-all border ${
+                className={`py-2 px-2 rounded-xl flex items-center justify-center gap-1.5 text-xs font-semibold transition-all border active:scale-95 ${
                   selectedSlot === slot
                     ? 'bg-emerald-500 text-black border-emerald-400 shadow-[0_0_12px_rgba(48,209,88,0.4)]'
                     : 'bg-white/5 text-white/70 border-white/10 hover:bg-white/10'
@@ -125,6 +166,60 @@ export const MealEntryModal: React.FC<MealEntryModalProps> = ({
               </button>
             ))}
           </div>
+        </div>
+
+        {/* 1. AI Smart Meal Logging (Gemini Integration) */}
+        <div className="p-3.5 rounded-2xl bg-cyan-500/[0.07] border border-cyan-400/25 flex flex-col gap-2.5">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-1.5">
+              <Wand2 className="w-3.5 h-3.5 text-cyan-400" />
+              <span className="text-xs font-bold text-cyan-300">
+                AI Smart Meal Logging (Gemini)
+              </span>
+            </div>
+            <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-400/30">
+              Natural Language
+            </span>
+          </div>
+
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={naturalLanguageInput}
+              onChange={(e) => setNaturalLanguageInput(e.target.value)}
+              placeholder="e.g. I ate 2 chapatis and chicken curry"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  handleGeminiEstimate();
+                }
+              }}
+              className="flex-1 px-3 py-2 rounded-xl bg-black/50 border border-white/15 text-white placeholder-white/30 text-xs focus:outline-none focus:border-cyan-400"
+            />
+            <button
+              type="button"
+              onClick={handleGeminiEstimate}
+              disabled={isAiEstimating || !naturalLanguageInput.trim()}
+              aria-label="Estimate macros with Gemini"
+              className="px-3 py-2 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-400 hover:to-blue-400 disabled:opacity-50 text-black font-extrabold text-xs flex items-center gap-1.5 active:scale-95 transition-all shadow-md shrink-0 cursor-pointer"
+            >
+              {isAiEstimating ? (
+                <>
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  <span>Estimating...</span>
+                </>
+              ) : (
+                <>
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <span>Estimate</span>
+                </>
+              )}
+            </button>
+          </div>
+
+          {aiError && (
+            <p className="text-[10px] text-rose-400 leading-tight">{aiError}</p>
+          )}
         </div>
 
         {/* Presets */}
@@ -152,7 +247,7 @@ export const MealEntryModal: React.FC<MealEntryModalProps> = ({
         </div>
 
         {/* Input Form */}
-        <form onSubmit={handleSave} className="flex flex-col gap-3.5">
+        <form onSubmit={handleSave} className="flex flex-col gap-3">
           <div className="flex flex-col gap-1">
             <label
               htmlFor="food-name"
@@ -250,10 +345,10 @@ export const MealEntryModal: React.FC<MealEntryModalProps> = ({
             </div>
           </div>
 
-          {/* Submit Button */}
+          {/* Submit Button with Scale */}
           <button
             type="submit"
-            className="w-full mt-2 py-3 px-4 rounded-2xl bg-gradient-to-r from-emerald-400 to-emerald-500 hover:from-emerald-300 hover:to-emerald-400 text-black font-extrabold text-sm tracking-wide shadow-lg shadow-emerald-500/30 flex items-center justify-center gap-2 active:scale-98 transition-all cursor-pointer"
+            className="w-full mt-1 py-3 px-4 rounded-2xl bg-gradient-to-r from-emerald-400 to-emerald-500 hover:from-emerald-300 hover:to-emerald-400 text-black font-extrabold text-sm tracking-wide shadow-lg shadow-emerald-500/30 flex items-center justify-center gap-2 active:scale-95 transition-all cursor-pointer"
           >
             <Check className="w-4 h-4 stroke-[3]" />
             <span>Save to {selectedSlot.toUpperCase()}</span>

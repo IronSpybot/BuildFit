@@ -5,12 +5,14 @@ import {
   Columns2,
   Footprints,
   RotateCcw,
-  Sparkles,
   Apple,
+  Droplets,
+  BarChart2,
 } from 'lucide-react';
 import { IPhoneFrame } from './components/iphone/IPhoneFrame';
 import { MainDashboard } from './components/views/MainDashboard';
 import { MealEntryModal } from './components/views/MealEntryModal';
+import { WeeklyTrendsModal } from './components/views/WeeklyTrendsModal';
 import { OnboardingProfileView } from './components/views/OnboardingProfileView';
 import { CodeArchitectureViewer } from './components/views/CodeArchitectureViewer';
 import {
@@ -54,6 +56,16 @@ const INITIAL_MEALS: MealItemLog[] = [
   },
 ];
 
+const INITIAL_WEEKLY_DATA = [
+  { dayName: 'Sat', steps: 8450, waterMl: 2100 },
+  { dayName: 'Sun', steps: 6920, waterMl: 1850 },
+  { dayName: 'Mon', steps: 11200, waterMl: 2750 },
+  { dayName: 'Tue', steps: 9400, waterMl: 2400 },
+  { dayName: 'Wed', steps: 10850, waterMl: 2600 },
+  { dayName: 'Thu', steps: 7800, waterMl: 2050 },
+  { dayName: 'Fri', steps: 8420, waterMl: 1250 },
+];
+
 export default function App() {
   // Studio View Mode: 'split' | 'phone' | 'code'
   const [viewMode, setViewMode] = useState<'split' | 'phone' | 'code'>('split');
@@ -65,11 +77,14 @@ export default function App() {
   const [metrics, setMetrics] = useState<UserMetrics>(INITIAL_METRICS);
   const [meals, setMeals] = useState<MealItemLog[]>(INITIAL_MEALS);
   const [stepCount, setStepCount] = useState<number>(8420);
+  const [waterIntakeMl, setWaterIntakeMl] = useState<number>(1250);
+  const [weeklyData, setWeeklyData] = useState(INITIAL_WEEKLY_DATA);
   const [lastIslandAction, setLastIslandAction] = useState<string>('');
 
-  // Meal modal state
+  // Modals state
   const [modalSlot, setModalSlot] = useState<'breakfast' | 'lunch' | 'dinner'>('breakfast');
   const [isMealModalOpen, setIsMealModalOpen] = useState(false);
+  const [isWeeklyTrendsOpen, setIsWeeklyTrendsOpen] = useState(false);
 
   // Computed metabolic values
   const macroTargets = useMemo(() => calculateMacroTargets(metrics), [metrics]);
@@ -99,10 +114,31 @@ export default function App() {
   };
 
   const handleSyncHealthKit = () => {
-    // Simulate query to Apple HealthKit
     const incrementalSteps = 600;
-    setStepCount((prev) => prev + incrementalSteps);
+    setStepCount((prev) => {
+      const nextSteps = prev + incrementalSteps;
+      setWeeklyData((curr) => {
+        const copy = [...curr];
+        copy[copy.length - 1].steps = nextSteps;
+        return copy;
+      });
+      return nextSteps;
+    });
     setLastIslandAction(`+${incrementalSteps} steps synced`);
+    setTimeout(() => setLastIslandAction(''), 3000);
+  };
+
+  const handleAddWater = (ml: number) => {
+    setWaterIntakeMl((prev) => {
+      const nextWater = prev + ml;
+      setWeeklyData((curr) => {
+        const copy = [...curr];
+        copy[copy.length - 1].waterMl = nextWater;
+        return copy;
+      });
+      return nextWater;
+    });
+    setLastIslandAction(`+${ml}ml water logged`);
     setTimeout(() => setLastIslandAction(''), 3000);
   };
 
@@ -111,6 +147,8 @@ export default function App() {
     setMetrics(INITIAL_METRICS);
     setMeals(INITIAL_MEALS);
     setStepCount(8420);
+    setWaterIntakeMl(1250);
+    setWeeklyData(INITIAL_WEEKLY_DATA);
     setActiveTab('dashboard');
   };
 
@@ -130,11 +168,11 @@ export default function App() {
           </div>
 
           <div className="hidden md:flex items-center gap-2 text-xs text-white/50">
-            <span>iPhone 16 Pro (393 × 852 pt)</span>
+            <span>iPhone 16 Pro</span>
             <span>·</span>
-            <span>Mifflin-St Jeor Engine</span>
+            <span>Gemini AI Meal Estimation</span>
             <span>·</span>
-            <span>SwiftData</span>
+            <span>HealthKit Dietary Water</span>
           </div>
         </div>
 
@@ -149,14 +187,26 @@ export default function App() {
             className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 text-xs font-semibold transition-all active:scale-95"
           >
             <Footprints className="w-3.5 h-3.5" />
-            <span>+600 HK Steps</span>
+            <span>+600 Steps</span>
+          </button>
+
+          {/* Quick Water Button */}
+          <button
+            onClick={() => {
+              haptic.trigger('medium');
+              handleAddWater(250);
+            }}
+            className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 text-xs font-semibold transition-all active:scale-95"
+          >
+            <Droplets className="w-3.5 h-3.5" />
+            <span>+250ml Water</span>
           </button>
 
           {/* Reset State */}
           <button
             onClick={handleReset}
             title="Reset to default demo data"
-            className="p-1.5 rounded-xl bg-white/5 hover:bg-white/10 text-white/60 hover:text-white border border-white/10 transition-all"
+            className="p-1.5 rounded-xl bg-white/5 hover:bg-white/10 text-white/60 hover:text-white border border-white/10 transition-all active:scale-95"
           >
             <RotateCcw className="w-3.5 h-3.5" />
           </button>
@@ -232,9 +282,12 @@ export default function App() {
                   meals={meals}
                   stepCount={stepCount}
                   activeBurn={activeBurn}
+                  waterIntakeMl={waterIntakeMl}
                   onOpenMealEntry={handleOpenMealEntry}
                   onDeleteMeal={handleDeleteMeal}
                   onSyncHealthKit={handleSyncHealthKit}
+                  onAddWater={handleAddWater}
+                  onOpenWeeklyTrends={() => setIsWeeklyTrendsOpen(true)}
                 />
               )}
 
@@ -259,7 +312,7 @@ export default function App() {
                       <button
                         key={slot}
                         onClick={() => handleOpenMealEntry(slot)}
-                        className="p-4 rounded-2xl bg-neutral-900/70 border border-white/10 hover:border-emerald-400/50 flex items-center justify-between text-left transition-all active:scale-98"
+                        className="p-4 rounded-2xl bg-neutral-900/70 border border-white/10 hover:border-emerald-400/50 flex items-center justify-between text-left transition-all active:scale-95"
                       >
                         <div>
                           <div className="text-sm font-bold text-white">{label}</div>
@@ -319,12 +372,19 @@ export default function App() {
         )}
       </div>
 
-      {/* Global Meal Entry Modal Sheet */}
+      {/* Global Meal Entry Modal Sheet with Gemini AI Natural Language input */}
       <MealEntryModal
         initialSlot={modalSlot}
         isOpen={isMealModalOpen}
         onClose={() => setIsMealModalOpen(false)}
         onSaveMeal={handleSaveMeal}
+      />
+
+      {/* Weekly Trends Modal (Swift Charts Analytics) */}
+      <WeeklyTrendsModal
+        isOpen={isWeeklyTrendsOpen}
+        onClose={() => setIsWeeklyTrendsOpen(false)}
+        weeklyData={weeklyData}
       />
     </div>
   );
